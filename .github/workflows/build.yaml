@@ -1,35 +1,80 @@
-name: Build
+name: Rust
 
-on:
-  push:
-    branches: [main]
+on: [push]
 
 jobs:
-  build:
-    name: Build
+  rustfmt:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - target: x86_64-pc-windows-gnu
-            archive: zip
-          - target: x86_64-unknown-linux-musl
-            archive: tar.gz tar.xz tar.zst
-          - target: x86_64-apple-darwin
-            archive: zip
     steps:
-      - uses: actions/checkout@master
-      - name: Compile
-        id: compile
-        uses: rust-build/rust-build.action@v1.4.3
+      - uses: actions/checkout@v1
+      - run: rustup component add rustfmt
+      - run: cargo fmt -- --check
+
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v1
+      # cache the build assets so they dont recompile every time.
+      - name: Cache Rust dependencies
+        uses: actions/cache@v1.0.1
         with:
-          RUSTTARGET: x86_64-unknown-linux-musl
-          UPLOAD_MODE: none
-      - name: Upload artifact
-        uses: actions/upload-artifact@v3
+          path: target
+          key: ${{ runner.OS }}-build-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.OS }}-build-
+      - name: Install latest rust toolchain
+        uses: actions-rs/toolchain@v1
         with:
-          name: Binary
-          path: |
-            ${{ steps.compile.outputs.BUILT_ARCHIVE }}
-            ${{ steps.compile.outputs.BUILT_CHECKSUM }}
+          toolchain: beta
+          default: true
+          override: true
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update \
+          && sudo apt-get install -y \
+          libdbus-1-dev
+      - name: Build
+        run: cargo build --all --release && strip target/release/#{your taget here bin} && mv target/release/#{your taget here bin}  target/release/ilfr
+
+      - name: Upload binaries to release
+        uses: svenstaro/upload-release-action@v1-release
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: target/release/ilfr
+          asset_name: ilfr
+          tag: build-${{ github.ref }}
+          overwrite: true
+
+  build-mac:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v1
+      - name: Cache Rust dependencies
+        uses: actions/cache@v1.0.1
+        with:
+          path: target
+          key: ${{ runner.OS }}-build-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.OS }}-build-
+      - name: Install latest rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: beta
+          target: x86_64-apple-darwin
+          default: true
+          override: true
+
+      - name: Build for mac
+        run: cargo build --all --release && strip target/release/rust-aha-cli && mv target/release/rust-aha-cli target/release/ilfr
+
+      - name: Upload binaries to release
+        uses: svenstaro/upload-release-action@v1-release
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: target/release/ilfr
+          asset_name: ilfr
+          tag: build-${{ github.ref }}

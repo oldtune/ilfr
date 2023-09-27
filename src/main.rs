@@ -19,15 +19,16 @@ async fn main() {
                     interval.reset();
                 },
                 _ = interval.tick() => {
+                    // simulate(&EventType::MouseMove{x: 1.0, y: 1.0}).unwrap();
+                    simulate(&EventType::Wheel{delta_x: 50, delta_y :0}).unwrap();
                     simulate(&EventType::KeyPress(Key::ControlLeft)).unwrap();
                     simulate(&EventType::KeyRelease(Key::ControlLeft)).unwrap();
-                    println!("Sent ctrl");
                 }
             }
         }
     });
 
-    let _ = tokio::task::spawn(async move {
+    let listener = tokio::task::spawn(async move {
         let callback = move |x: Event| {
             let arc_sender_clone = arc_sender.clone();
             match x.name {
@@ -35,13 +36,37 @@ async fn main() {
                 _ => (),
             }
 
-            tokio::task::spawn(async move {
-                println!("Reset timer");
-                arc_sender_clone.send(true).await.unwrap();
-            });
+            let callback = || {
+                tokio::task::spawn(async move {
+                    println!("Reset timer");
+                    arc_sender_clone.send(true).await.unwrap();
+                });
+            };
+
+            match x.event_type {
+                EventType::Wheel { delta_x, delta_y } => {
+                    println!("wheel {}, {}", delta_x, delta_y);
+                    callback();
+                }
+                EventType::ButtonRelease(button) => {
+                    println!("Button {:?} released", button);
+                    callback();
+                }
+                EventType::KeyRelease(button) => {
+                    println!("Key {:?} released", button);
+                    callback();
+                }
+                EventType::MouseMove { x, y } => {
+                    println!("Mouse moved {} {}", x, y);
+                    callback();
+                }
+                _ => (),
+            };
         };
+
         listen(callback).unwrap();
     });
 
     forever.await.unwrap();
+    listener.await.unwrap();
 }
