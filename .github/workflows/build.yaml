@@ -20,7 +20,7 @@ jobs:
             archive: zip
     steps:
       - name: Install xmllint
-        run: sudo apt-get install -y libx11-dev xserver-xorg-dev xorg-dev
+        run: sudo apt-get install -y libX11-dev xserver-xorg-dev xorg-dev
       - uses: actions/checkout@master
       - name: Compile
         id: compile
